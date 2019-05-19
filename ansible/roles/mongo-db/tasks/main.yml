@@ -1,0 +1,103 @@
+- name: Create mongodb repo file
+  template: src=mongodb.repo.j2 dest=/etc/yum.repos.d/mongodb-org-3.6.repo owner=root group=root mode=644
+
+- name: Install mongodb
+  yum: name=mongodb-org state=present
+
+- name: Configure mongodb
+  template: src=mongod.conf.j2 dest=/etc/{{ mongodb_conf_name }} owner=root group=root mode=644
+
+- name: create mongodb data directory
+  file: 
+    path: "{{ item }}" 
+    state: directory 
+    owner: mongod 
+    group: mongod 
+    mode: 0755
+  with_items: 
+  - "{{ mongodb_dbpath }}"
+  - "{{ mongodb_logpath }}"
+  - "{{ mongodb_pidFilePath }}"
+  - /opt/backups
+
+- name: configure mongod service
+  template: src=mongod.service.j2 dest=/usr/lib/systemd/system/{{ mongodb_name }}.service owner=root group=root mode=644
+
+- name: copy configurations json
+  template: src=configurations.json.j2 dest=/opt/backups/configurations.json owner=root group=root mode=644
+
+- name: allow mongod to modify files in data directory
+  sefcontext: target='{{ mongodb_dbpath }}.*' setype=mongod_var_lib_t state=present
+
+- name: changing security context
+  command: chcon -Rv -u system_u -t mongod_var_lib_t '{{ mongodb_dbpath }}'
+
+- name: reload secontext
+  command: restorecon -R -v '{{ mongodb_dbpath }}'
+
+- name: install pip
+  yum: name=python-pip state=present
+
+- name: install pymongo
+  pip: name=pymongo
+
+- name: Start mongodb process
+  service: name={{ mongodb_name }} state=started enabled=yes
+
+- stat: 
+    path: /opt/{{ mongodb_name }}.installed
+  register: installation_status
+
+- name: create mongodb admin user
+  mongodb_user:
+    login_port: "{{ mongodb_port }}"
+    database: "admin"
+    name: "{{ mongodb_admin_user }}"
+    password: "{{ mongodb_admin_password }}"
+    roles: "root"
+  when: installation_status.stat.exists == False
+
+- name: create mongodb admin and normal user
+  mongodb_user:
+    login_port: "{{ mongodb_port }}"
+    login_user: "{{ mongodb_admin_user }}"
+    login_password: "{{ mongodb_admin_password }}"
+    database: "{{ mongodb_db_name }}"
+    name: "{{ mongodb_user_name }}"
+    password: "{{ mongodb_user_password }}"
+    roles:
+    - { db: "admin", role: "readWrite" }
+    - { db: "{{ mongodb_db_name }}", role: "readWrite" }
+  when: installation_status.stat.exists == False
+
+- name: create file if all above installation steps succeeded
+  file:
+    path: /opt/{{ mongodb_name }}.installed
+    state: touch
+
+- name: download file from gcp storage
+  gc_storage:
+    bucket: apeg-prod-data-dumps
+    object: "{{ mongodb_name }}/{{ mongodb_name }}-{{ backup_date }}.csv.gz"
+    dest: "/opt/backups/{{ mongodb_name }}-{{ backup_date }}.csv.gz"
+    mode: get
+    gs_access_key: "{{ lookup('env', 'GS_ACCESS_KEY_ID') }}"
+    gs_secret_key: "{{ lookup('env', 'GS_SECRET_ACCESS_KEY') }}"
+
+
+- name: extract tge data dump
+  command: gunzip "/opt/backups/{{ mongodb_name }}-{{ backup_date }}.csv.gz"
+  args:
+    creates: "/opt/backups/{{ mongodb_name }}-{{ backup_date }}.csv"
+
+- name: load CSV data into mongo DB
+  command: mongoimport --host 127.0.0.1:{{ mongodb_port }} -u {{ mongodb_user_name }} -p{{ mongodb_user_password }} --db {{ mongodb_db_name }} --collection apegtest --type csv --file "/opt/backups/{{ mongodb_name }}-{{ backup_date }}.csv" --headerline
+
+#- name: copy the dump file into server
+#  unarchive:
+#    src: mongo_dump_20190304.tar.gz
+#    dest: /opt/backups/ 
+#  notify:
+#  - restore k-db-mongo mongoDB from source
+#  - remove configurations collection
+#  - import configrations data

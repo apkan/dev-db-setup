@@ -1,0 +1,11 @@
+---
+all:
+  hosts:
+    server1:
+      ansible_host=35.240.166.126 
+      ansible_port=22 
+      ansible_user=pratheep
+  children:
+    http:
+      hosts:
+        server1:

@@ -1,0 +1,22 @@
+# mongod.conf
+
+systemLog:
+  destination: file
+  logAppend: true
+  path: {{ mongodb_logpath }}/mongod.log
+
+storage:
+  dbPath: {{ mongodb_dbpath }}
+  engine: "wiredTiger"
+
+processManagement:
+  fork: true
+  pidFilePath: {{ mongodb_pidFilePath }}/mongod.pid
+  timeZoneInfo: /usr/share/zoneinfo
+
+net:
+  port: {{ mongodb_port }}
+  bindIp: {{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}, 127.0.0.1
+
+security:
+  authorization: enabled

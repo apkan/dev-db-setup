@@ -1,0 +1,137 @@
+- name: Download MySQL Community Repo
+  get_url:
+    url: http://repo.mysql.com/mysql-community-release-el7-7.noarch.rpm
+    dest: /tmp
+
+- name: install mysql
+  yum:
+    name: /tmp/mysql-community-release-el7-7.noarch.rpm
+    state: present
+
+- name: Install MySQL Server
+  yum:
+    name: mysql-server
+    state: present
+
+- name: install-mysql
+  yum:
+    name: MySQL-python
+    state: present
+
+- name: configure mysql parameters in my.cnf
+  template:
+    src: my.cnf.j2
+    dest: /etc/my.cnf
+    owner: root
+    group: root
+    mode: 644
+
+- name: addd mysql startup script
+  template:
+    src: mysqld.service.j2
+    dest: /usr/lib/systemd/system/mysqld.service
+    owner: root
+    group: root
+    mode: 644
+
+- name: create mongodb data directory
+  file:
+    path: "{{ mysql_data_dir }}"
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: 0755
+
+- name: selinux settings for mysql datadir
+  command: semanage fcontext -a -t mysqld_db_t '{{ mysql_data_dir }}(/.*)?'
+
+- name: restorecon command
+  command: restorecon -Rv '{{ mysql_data_dir }}'
+
+- name: Start MySQL Server and enable it
+  service:
+    name: mysqld
+    state: started
+    daemon_reload: yes
+    enabled: yes
+
+- stat:
+    path: /opt/mysql.installed
+  register: installation_status
+
+- name: Remove Test database if it exist.
+  mysql_db:
+    name: test
+    state: absent
+  ignore_errors: yes
+  when: installation_status.stat.exists == False
+
+- name: Remove All Anonymous User Accounts
+  mysql_user:
+    name: ''
+    host_all: yes
+    state: absent
+  when: installation_status.stat.exists == False
+
+- name: Change root password
+  mysql_user: name=root host={{item}} password={{ mysql_root_password }}
+  with_items:
+  - "{{ansible_hostname}}"
+  - 127.0.0.1
+  - ::1
+  - localhost
+  when: installation_status.stat.exists == False
+
+- name: create database
+  mysql_db:
+    name: "{{ mysql_db_name }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    state: present
+  when: installation_status.stat.exists == False
+
+- name: add mysql user and assign permission
+  mysql_user:
+    name: "{{ mysql_user_name }}"
+    password: "{{ mysql_user_password }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    priv: "{{ mysql_db_name }}.*:ALL"
+    state: present
+  when: installation_status.stat.exists == False
+
+- name: create file if all above installation steps succeeded
+  file:
+    path: /opt/mysql.installed
+    state: touch
+
+- name: create backup directory if not exists
+  file:
+    path: /opt/backups/
+    state: directory
+
+#- name: copy message db dump into server
+#  copy:
+#    src: dump_messagedb.sql
+#    dest: /opt/backups
+
+#- name: source messagedb
+#  mysql_db:
+#    name: "{{ msg_db_name }}"
+#    login_user: "{{ msg_user_name }}"
+#    login_password: "{{ msg_user_password }}"
+#    state: import
+#    target: /opt/backups/dump_messagedb.sql
+
+#- name: copy balance db dump into server
+#  copy:
+#    src: uat_kryptonobalancedb.sql
+#    dest: /opt/backups
+
+#- name: source balance db
+#  mysql_db:
+#    name: "{{ balance_db_name }}"
+#    login_user: "{{ balance_user_name }}"
+#    login_password: "{{ balance_user_password }}"
+#    state: import
+#    target: /opt/backups/uat_kryptonobalancedb.sql
