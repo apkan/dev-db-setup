@@ -21,7 +21,7 @@
 - name: configure mysql parameters in my.cnf
   template:
     src: my.cnf.j2
-    dest: /etc/my.cnf
+    dest: "/etc/{{ mysqldb_name }}.cnf"
     owner: root
     group: root
     mode: 644
@@ -29,52 +29,73 @@
 - name: addd mysql startup script
   template:
     src: mysqld.service.j2
-    dest: /usr/lib/systemd/system/mysqld.service
+    dest: "/usr/lib/systemd/system/mysql-{{ mysqldb_name }}.service"
     owner: root
     group: root
     mode: 644
 
-- name: create mongodb data directory
+- name: create mysql-db data directory
   file:
-    path: "{{ mysql_data_dir }}"
+    path: "{{item}}"
     state: directory
     owner: mysql
     group: mysql
     mode: 0755
+  with_items:
+  - "{{ mysqldb_data_dir }}"
+  - "/var/log/{{ mysqldb_name }}"
+
+- stat:
+    path: /opt/{{ mysqldb_name }}.installed
+  register: installation_status
+
+- name: setup mysql db
+  command: mysql_install_db --user=mysql --datadir={{ mysqldb_data_dir }}
+  when: installation_status.stat.exists == False
 
 - name: selinux settings for mysql datadir
-  command: semanage fcontext -a -t mysqld_db_t '{{ mysql_data_dir }}(/.*)?'
+  command: semanage fcontext -a -t mysqld_db_t '{{ mysqldb_data_dir }}(/.*)?'
+  when: installation_status.stat.exists == False
 
 - name: restorecon command
-  command: restorecon -Rv '{{ mysql_data_dir }}'
+  command: restorecon -Rv '{{ mysqldb_data_dir }}'
+  when: installation_status.stat.exists == False
 
 - name: Start MySQL Server and enable it
   service:
-    name: mysqld
+    name: "mysql-{{ mysqldb_name }}"
     state: started
     daemon_reload: yes
-    enabled: yes
+    #enabled: yes
 
 - stat:
-    path: /opt/mysql.installed
+    path: /opt/{{ mysqldb_name }}.installed
   register: installation_status
 
 - name: Remove Test database if it exist.
   mysql_db:
     name: test
     state: absent
-  ignore_errors: yes
+    login_host: 127.0.0.1
+    login_port: "{{ mysqldb_port }}"
   when: installation_status.stat.exists == False
 
 - name: Remove All Anonymous User Accounts
   mysql_user:
     name: ''
     host_all: yes
+    login_host: 127.0.0.1
+    login_port: "{{ mysqldb_port }}"
     state: absent
   when: installation_status.stat.exists == False
 
 - name: Change root password
-  mysql_user: name=root host={{item}} password={{ mysql_root_password }}
+  mysql_user: 
+    name: root 
+    host: "{{item}}"
+    password: "{{ mysqldb_root_password }}"
+    login_host: 127.0.0.1
+    login_port: "{{ mysqldb_port }}"
   with_items:
   - "{{ansible_hostname}}"
   - 127.0.0.1
@@ -84,31 +105,59 @@
 
 - name: create database
   mysql_db:
-    name: "{{ mysql_db_name }}"
+    name: "{{ mysqldb_name }}"
     login_user: root
-    login_password: "{{ mysql_root_password }}"
+    login_password: "{{ mysqldb_root_password }}"
+    login_host: 127.0.0.1
+    login_port: "{{ mysqldb_port }}"
     state: present
   when: installation_status.stat.exists == False
 
 - name: add mysql user and assign permission
   mysql_user:
-    name: "{{ mysql_user_name }}"
-    password: "{{ mysql_user_password }}"
+    name: "{{ mysqldb_user_name }}"
+    password: "{{ mysqldb_user_password }}"
     login_user: root
-    login_password: "{{ mysql_root_password }}"
-    priv: "{{ mysql_db_name }}.*:ALL"
+    login_password: "{{ mysqldb_root_password }}"
+    login_host: 127.0.0.1
+    login_port: "{{ mysqldb_port }}"
+    priv: "{{ mysqldb_name }}.*:ALL"
     state: present
   when: installation_status.stat.exists == False
 
 - name: create file if all above installation steps succeeded
   file:
-    path: /opt/mysql.installed
+    path: "/opt/{{ mysqldb_name }}.installed"
     state: touch
 
 - name: create backup directory if not exists
   file:
     path: /opt/backups/
     state: directory
+
+- name: download file from gcp storage
+  gc_storage:
+    bucket: "{{ backup_bucket_name }}"
+    object: "{{ mysqldb_name }}/{{ mysqldb_name }}-{{ backup_date }}.sql.gz"
+    dest: "/opt/backups/{{ mysqldb_name }}-{{ backup_date }}.sql.gz"
+    mode: get
+    gs_access_key: "{{ lookup('env', 'GS_ACCESS_KEY_ID') }}"
+    gs_secret_key: "{{ lookup('env', 'GS_SECRET_ACCESS_KEY') }}"
+
+- name: extract tge data dump
+  command: gunzip "/opt/backups/{{ mysqldb_name }}-{{ backup_date }}.sql.gz"
+  args:
+    creates: "/opt/backups/{{ mysqldb_name }}-{{ backup_date }}.sql"
+
+- name: source mysql database
+  mysql_db:
+    name: "{{ mysqldb_name }}"
+    login_user: "{{ mysqldb_user_name }}"
+    login_password: "{{ mysqldb_user_password }}"
+    login_host: 127.0.0.1
+    login_port: "{{ mysqldb_port }}"
+    state: import
+    target: "/opt/backups/{{ mysqldb_name }}-{{ backup_date }}.sql"
 
 #- name: copy message db dump into server
 #  copy:

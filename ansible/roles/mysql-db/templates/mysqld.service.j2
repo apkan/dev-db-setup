@@ -31,13 +31,17 @@ Group=mysql
 PermissionsStartOnly=true
 
 # Needed to create system tables etc.
-ExecStartPre=/usr/bin/mysql-systemd-start pre
+ExecStartPre=
+#ExecStartPre=/usr/bin/mysql-systemd-start pre
 
 # Start main service
-ExecStart=/usr/bin/mysqld_safe --basedir=/usr --datadir={{ mysql_data_dir }} --socket=/var/lib/mysql/mysql.sock 
+#ExecStart=/usr/bin/mysqld_safe --defaults-file=/etc/{{ mysqldb_name }}.cnf --basedir=/usr --datadir={{ mysqldb_data_dir }} --socket=/var/lib/mysql/mysql.sock
+ExecStart=
+ExecStart=/usr/bin/mysqld_safe --defaults-file=/etc/{{ mysqldb_name }}.cnf  --datadir={{ mysqldb_data_dir }}  --socket=/var/lib/mysql/{{ mysqldb_name }}.sock
 
 # Don't signal startup success before a ping works
-ExecStartPost=/usr/bin/mysql-systemd-start post
+ExecStartPost=
+#ExecStartPost=/usr/bin/mysql-systemd-start post
 
 # Give up if ping don't get an answer
 TimeoutSec=600

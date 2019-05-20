@@ -17,11 +17,10 @@
 # join_buffer_size = 128M
 # sort_buffer_size = 2M
 # read_rnd_buffer_size = 2M
-datadir={{ mysql_data_dir }}
-socket=/var/lib/mysql/mysql.sock
-#socket={{ mysql_data_dir }}/mysql.sock
+datadir={{ mysqldb_data_dir }}
+socket=/var/lib/mysql/{{ mysqldb_name }}.sock
 
-port={{ mysql_port }}
+port={{ mysqldb_port }}
 
 # Disabling symbolic-links is recommended to prevent assorted security risks
 symbolic-links=0
@@ -30,5 +29,5 @@ symbolic-links=0
 sql_mode=NO_ENGINE_SUBSTITUTION,STRICT_TRANS_TABLES
 
 [mysqld_safe]
-log-error=/var/log/mysqld.log
-pid-file=/var/run/mysqld/mysqld.pid
+log-error=/var/log/{{ mysqldb_name }}/{{ mysqldb_name }}.log
+pid-file=/var/run/mysqld/{{ mysqldb_name }}.pid

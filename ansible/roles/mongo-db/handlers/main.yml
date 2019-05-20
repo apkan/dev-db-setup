@@ -1,5 +1,5 @@
-- name: restore k-db-mongo mongoDB from source
-  command: mongorestore --host 127.0.0.1:{{ mongodb_port }} -u {{ mongodb_user_name }} -p{{ mongodb_user_password }} --authenticationDatabase {{ mongodb_db_name }} /opt/backups/mongo_dump_20190304
+#- name: restore k-db-mongo mongoDB from source
+#  command: mongorestore --host 127.0.0.1:{{ mongodb_port }} -u {{ mongodb_user_name }} -p{{ mongodb_user_password }} --authenticationDatabase {{ mongodb_db_name }} /opt/backups/mongo_dump_20190304
 
 - name: remove configurations collection
   command: mongo -u {{ mongodb_user_name }} -p{{ mongodb_user_password }} --host 127.0.0.1:{{ mongodb_port }} --authenticationDatabase {{ mongodb_db_name }} {{ mongodb_db_name }} --eval 'db.configurations.remove({});'

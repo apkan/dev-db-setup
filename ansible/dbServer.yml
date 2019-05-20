@@ -4,11 +4,13 @@
   become_user: root
   connection: ssh
   gather_facts: yes
+  vars:
+    backup_bucket_name: apeg-prod-data-dumps
+    backup_date: 2019-04-15
   roles:
     - role: mongo-db
       vars:
-        backup_date: 2019-04-16
-        mongodb_name: accounts
+        mongodb_db_name: accounts
         mongodb_conf_name: accounts-mongo.conf
         mongodb_dbpath: /data/accounts-mongo
         mongodb_logpath: /var/log/accounts-mongo
@@ -16,14 +18,12 @@
         mongodb_port: 45601
         mongodb_admin_user: admin
         mongodb_admin_password: adminpass
-        mongodb_db_name: accounts
         mongodb_user_name: apeguser
         mongodb_user_password: apegpass
 
     - role: mongo-db
       vars:
-        backup_date: 2019-04-16
-        mongodb_name: order-history
+        mongodb_db_name: order-history
         mongodb_conf_name: order-history-mongo.conf
         mongodb_dbpath: /data/order-history-mongo
         mongodb_logpath: /var/log/order-history-mongo
@@ -31,23 +31,24 @@
         mongodb_port: 45602
         mongodb_admin_user: admin
         mongodb_admin_password: adminpass
-        mongodb_db_name: orderHistory
         mongodb_user_name: apeguser
         mongodb_user_password: apegpass
 
     - role: mysql-db
       vars:
-        backup_date: 2019-04-16
         mysqldb_name: balance
-        mysql_port: 35600
-        mysql_data_dir: /data/balance-mysql
-        mysql_root_password: cosspass
-        mysql_db_name: cossbalancedb
-        mysql_user_name: cossbalance
-        mysql_user_password: cosspass
-#  - k-db-mongo
-#  - e-db-mongo
-#  - e-db-mongo-tracking
-#  - internal-data
-#  - redis
-#  - mysql
+        mysqldb_port: 35600
+        mysqldb_data_dir: /data/balance-mysql
+        mysqldb_root_password: rootpass
+        mysqldb_user_name: apeguser
+        mysqldb_user_password: apegpass
+
+    - role: mysql-db
+      vars:
+        mysqldb_name: reporting
+        mysqldb_port: 35700
+        mysqldb_data_dir: /data/reporting-mysql
+        mysqldb_root_password: rootpass
+        mysqldb_user_name: apeguser
+        mysqldb_user_password: apegpass
+
