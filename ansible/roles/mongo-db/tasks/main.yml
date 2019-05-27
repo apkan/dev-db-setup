@@ -57,7 +57,7 @@
     roles: "root"
   when: installation_status.stat.exists == False
 
-- name: create mongodb admin and normal user
+- name: create user and assign roles
   mongodb_user:
     login_port: "{{ mongodb_port }}"
     login_user: "{{ mongodb_admin_user }}"
@@ -66,7 +66,6 @@
     name: "{{ mongodb_user_name }}"
     password: "{{ mongodb_user_password }}"
     roles:
-    - { db: "admin", role: "readWrite" }
     - { db: "{{ mongodb_db_name }}", role: "readWrite" }
   when: installation_status.stat.exists == False
 
@@ -78,7 +77,6 @@
 - name: download file from gcp storage
   gc_storage:
     bucket: "{{ backup_bucket_name }}"
-    #bucket: apeg-prod-data-dumps
     object: "{{ mongodb_db_name }}/{{ mongodb_db_name }}-{{ backup_date }}.csv.gz"
     dest: "/opt/backups/{{ mongodb_db_name }}-{{ backup_date }}.csv.gz"
     mode: get

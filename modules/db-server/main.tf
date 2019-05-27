@@ -26,7 +26,7 @@ resource "google_compute_instance" "db_server" {
   }
 
   provisioner "remote-exec" {
-    inline = ["echo 'Hello World'"]
+    inline = ["echo 'Setting up dev DB server!'"]
 
     connection {
       type        = "ssh"
